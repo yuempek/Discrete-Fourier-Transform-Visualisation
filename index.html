@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fourier and Sinus Wave Visualisation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #canvas-container {
+            position: relative;
+            background: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            width: 800px;
+            height: 440px;
+        }
+
+        /* p5.js tarafından üretilen HTML elementlerini container içinde konumlandırıyoruz */
+        #canvas-container select, 
+        #canvas-container input {
+            position: absolute;
+            z-index: 10;
+        }
+        
+        .info-text {
+            margin-top: 15px;
+            max-width: 780px;
+            font-size: 14px;
+            color: #555;
+            text-align: center;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        </div>
+
+    <div class="info-text">
+        <strong>Tip:</strong> You can use the drop-down menu in the top left to change the view. While in orthogonal mode, you can rotate in 3D space by dragging with the mouse.
+    </div>
+
+    <script>
+        let t = 0;
+        const W = 800;
+        const H = 440;
+        const ARROW_LEN = 38;
+        let rotX = 0, rotY = 0; 
+
+        let sliderX, sliderY;
+        let currentView;
+        let phaseStepCoef;
+        let previousView;
+
+        function getParams() {
+            return {
+                speed: 0.5,
+                count: 50,
+                phaseStep: -(1.5 - phaseStepCoef.value()) * Math.PI * 2,
+                spacing: 8
+            };
+        }
+
+        function setup() {
+            // Canvas'ı oluştur ve CSS ile sarmaladığımız container içine koy
+            let cnv = createCanvas(W, H, WEBGL);
+            cnv.parent('canvas-container');
+            
+            stroke(255); 
+            strokeWeight(1.5);
+          
+            // Slider'lar (Container yapısına uygun konumlandırma)
+            sliderX = createSlider(-PI, PI, 0, 0.01);
+            sliderX.parent('canvas-container');
+            sliderX.position(10, 50);
+            sliderX.hide();
+          
+            sliderY = createSlider(-PI, PI, 0, 0.01);
+            sliderY.parent('canvas-container');
+            sliderY.position(10, 80);
+            sliderY.hide();
+          
+            phaseStepCoef = createSlider(0.5, 1, 0.5, 0.0001);
+            phaseStepCoef.parent('canvas-container');
+            phaseStepCoef.position(10, 25);
+            phaseStepCoef.style('width', '100px');
+          
+            currentView = createSelect();
+            currentView.parent('canvas-container');
+            currentView.position(10, 2);
+            currentView.option('xy');
+            currentView.option('zy');
+            currentView.option('orthogonal');
+            currentView.selected('orthogonal');
+          
+            describe('A visualization showing how a sine wave emerges as the side projection of uniformly rotating unit vectors — the geometric intuition behind the Fourier transform.');
+        }
+
+        windowResized = function() { 
+            resizeCanvas(W, H); 
+        };
+
+        function draw() {
+            clear();
+            const { speed, count, phaseStep, spacing } = getParams();
+            t += 0.016 * speed;
+          
+            if(previousView != currentView.selected()){
+                sliderY.value(0);
+                sliderX.value(0);
+                previousView = currentView.selected();
+            }
+          
+            rotX = sliderX.value();
+            rotY = sliderY.value();
+
+            const isDark = false;
+            background(0, 0);
+
+            const axisCol = isDark ? color(180, 180, 180) : color(80, 80, 80);
+            const vecCol  = isDark ? color(100, 180, 255) : color(30, 100, 220);
+            const tipCol  = isDark ? color(255, 140, 80)  : color(220, 80, 20);
+            const gridCol = isDark ? color(60, 60, 60)    : color(200, 200, 200);
+
+            const totalW  = (count - 1) * spacing;
+            const startX  = -totalW / 2;
+
+            if (currentView.selected() === 'xy') {
+                ortho(-W/2, W/2, -H/2, H/2, -10000, 10000);
+                camera(0, 0, 500, 0, 0, 0, 0, 1, 0);
+            } else if (currentView.selected() === 'zy') {
+                ortho(-W/2, W/2, -H/2, H/2, -10000, 10000);
+                camera(500, 0, 0, 0, 0, 0, 0, 1, 0);
+            } else {
+                ortho(-W/2 * 0.9, W/2 * 0.9, -H/2 * 0.9, H/2 * 0.9, -10000, 10000);
+                camera(280, -220, 380, 0, 0, 0, 0, 1, 0);
+            }
+
+            rotateY(rotY);
+            
+            // X axis
+            stroke(axisCol); 
+            strokeWeight(1.5);
+            line(startX, 0, 0, startX + totalW + 20, 0, 0);
+
+            // Tick
+            for (let i = 0; i < count; i++) {
+                const x = startX + i * spacing;
+                stroke(axisCol); strokeWeight(1);
+                line(x, -4, 0, x, 4, 0);
+            }
+
+            // Y axis
+            stroke(axisCol); strokeWeight(1.2);
+            line(startX, -ARROW_LEN - 15, 0, startX, ARROW_LEN + 15, 0);
+
+            // Z axis
+            line(startX, 0, -ARROW_LEN - 15, startX, 0, ARROW_LEN + 15);
+          
+            const vertexes = [];
+          
+            for (let i = 0; i < count; i++) {
+                const x     = startX + i * spacing;
+                const angle = t + i * phaseStep;
+                const vy    = Math.sin(angle) * ARROW_LEN;
+                const vz    = Math.cos(angle) * ARROW_LEN;
+
+                // Stem
+                stroke(vecCol); strokeWeight(2);
+                line(x, 0, 0, x, -vy, vz);
+
+                // Arrow head
+                const tx = x, ty = -vy, tz = vz;
+                const len = Math.sqrt(vy * vy + vz * vz);
+                if (len > 0.01) {
+                    const ny = -vy / len, nz = vz / len;
+                    const hs = 7;
+                    stroke(tipCol); strokeWeight(1.0);
+                    line(tx, ty, tz, tx, ty - ny * hs + nz * hs * 0.4, tz - nz * hs - ny * hs * 0.4);
+                    line(tx, ty, tz, tx, ty - ny * hs - nz * hs * 0.4, tz - nz * hs + ny * hs * 0.4);
+                }
+                vertexes.push({tx, ty, tz});
+              
+                // Base dot
+                stroke(vecCol); 
+                strokeWeight(5);
+                point(x, 0, 0);
+            }
+
+            if (currentView.selected() !== 'zy') {
+                stroke(100, 200, 120, 160); strokeWeight(1.2);
+                noFill();
+                beginShape();
+                for (let i = 0; i < count; i++) {
+                    vertex(vertexes[i].tx, vertexes[i].ty, vertexes[i].tz);
+                }
+                endShape();
+            }
+
+            {
+                const cx = startX;
+                stroke(255, 160, 80, 140); strokeWeight(1.2);
+                noFill();
+                beginShape();
+                for (let a = 0; a <= TWO_PI + 0.01; a += 0.1) {
+                    vertex(cx, -Math.sin(a) * ARROW_LEN, Math.cos(a) * ARROW_LEN);
+                }
+                endShape();
+            }
+        }
+
+        function mouseDragged() {
+            // Butonların ve slider'ların olduğu alanda sürüklemeyi engellemek için kontrol
+            if (mouseX < 150 && mouseY < 100) return;
+          
+            let sensitivity = 0.01;
+            rotY += (mouseX - pmouseX) * sensitivity;
+            rotX += (mouseY - pmouseY) * sensitivity;
+          
+            sliderY.value(rotY);
+            sliderX.value(rotX);
+        }
+    </script>
+</body>
+</html>
